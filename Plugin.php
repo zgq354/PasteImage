@@ -1,7 +1,7 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 /**
- * 在编辑器中一键粘贴图片，类似简书的编辑框
+ * 为自带 Markdown 编辑器增加系统剪贴板中的图片粘贴上传的支持，类似简书写文章页面的编辑框
  *
  * @package Paste Image
  * @author qing
@@ -41,12 +41,7 @@ class PasteImage_Plugin implements Typecho_Plugin_Interface
      * @param Typecho_Widget_Helper_Form $form 配置面板
      * @return void
      */
-    public static function config(Typecho_Widget_Helper_Form $form)
-    {
-        /** 分类名称 */
-        $name = new Typecho_Widget_Helper_Form_Element_Text('word', NULL, 'Hello World', _t('说点什么'));
-        $form->addInput($name);
-    }
+    public static function config(Typecho_Widget_Helper_Form $form){}
 
     /**
      * 个人用户的配置面板
@@ -65,6 +60,8 @@ class PasteImage_Plugin implements Typecho_Plugin_Interface
      */
     public static function render()
     {
+
+        Typecho_Widget::widget('Widget_Options')->to($options);
         ?>
 <script>
 // 粘贴文件上传
@@ -96,6 +93,17 @@ $(document).ready(function () {
         // 设置光标位置
         textarea.setSelection(offset, offset);
 
+        // 设置附件栏信息
+        // 先切到附件栏
+        $('#tab-files-btn').click();
+
+        // 更新附件的上传提示
+        var fileInfo = {
+            id: index,
+            name: fileName
+        }
+        fileUploadStart(fileInfo);
+
         // 是时候展示真正的上传了
         var formData = new FormData();
         formData.append('name', fileName);
@@ -113,11 +121,15 @@ $(document).ready(function () {
                 textarea.val(textarea.val().replace(uploadingText, '![' + title + '](' + url + ')'));
                 // 触发输入框更新事件，把状态压人栈中，解决预览不更新的问题
                 textarea.trigger('paste');
+                // 附件上传的UI更新
+                fileUploadComplete(index, url, data[1]);
             },
             error: function (error) {
                 textarea.val(textarea.val().replace(uploadingText, '[图片上传错误...]\n'));
                 // 触发输入框更新事件，把状态压人栈中，解决预览不更新的问题
                 textarea.trigger('paste');
+                // 附件上传的 UI 更新
+                fileUploadError(fileInfo);
             }
         });
     }
@@ -136,7 +148,108 @@ $(document).ready(function () {
           break;
         }
       }
-    })
+    });
+
+
+
+    //
+    // 以下代码均来自 /admin/file-upload-js.php，无奈只好复制粘贴过来实现功能
+    //
+
+    // 更新附件数量显示
+    function updateAttacmentNumber () {
+        var btn = $('#tab-files-btn'),
+            balloon = $('.balloon', btn),
+            count = $('#file-list li .insert').length;
+
+        if (count > 0) {
+            if (!balloon.length) {
+                btn.html($.trim(btn.html()) + ' ');
+                balloon = $('<span class="balloon"></span>').appendTo(btn);
+            }
+
+            balloon.html(count);
+        } else if (0 == count && balloon.length > 0) {
+            balloon.remove();
+        }
+    }
+
+    // 开始上传文件的提示
+    function fileUploadStart (file) {
+        $('<li id="' + file.id + '" class="loading">'
+            + file.name + '</li>').appendTo('#file-list');
+    }
+
+    // 上传完毕的操作
+    var completeFile = null;
+    function fileUploadComplete (id, url, data) {
+        var li = $('#' + id).removeClass('loading').data('cid', data.cid)
+            .data('url', data.url)
+            .data('image', data.isImage)
+            .html('<input type="hidden" name="attachment[]" value="' + data.cid + '" />'
+                + '<a class="insert" target="_blank" href="###" title="<?php _e('点击插入文件'); ?>">' + data.title + '</a><div class="info">' + data.bytes
+                + ' <a class="file" target="_blank" href="<?php $options->adminUrl('media.php'); ?>?cid='
+                + data.cid + '" title="<?php _e('编辑'); ?>"><i class="i-edit"></i></a>'
+                + ' <a class="delete" href="###" title="<?php _e('删除'); ?>"><i class="i-delete"></i></a></div>')
+            .effect('highlight', 1000);
+
+        attachInsertEvent(li);
+        attachDeleteEvent(li);
+        updateAttacmentNumber();
+
+        if (!completeFile) {
+            completeFile = data;
+        }
+    }
+
+    // 增加插入事件
+    function attachInsertEvent (el) {
+        $('.insert', el).click(function () {
+            var t = $(this), p = t.parents('li');
+            Typecho.insertFileToEditor(t.text(), p.data('url'), p.data('image'));
+            return false;
+        });
+    }
+
+    // 增加删除事件
+    function attachDeleteEvent (el) {
+        var file = $('a.insert', el).text();
+        $('.delete', el).click(function () {
+            if (confirm('<?php _e('确认要删除文件 %s 吗?'); ?>'.replace('%s', file))) {
+                var cid = $(this).parents('li').data('cid');
+                $.post('<?php Helper::security()->index('/action/contents-attachment-edit'); ?>',
+                    {'do' : 'delete', 'cid' : cid},
+                    function () {
+                        $(el).fadeOut(function () {
+                            $(this).remove();
+                            updateAttacmentNumber();
+                        });
+                    });
+            }
+
+            return false;
+        });
+    }
+
+    // 错误处理，相比原来的函数，做了一些微小的改造
+    function fileUploadError (file) {
+        var word;
+
+        word = '<?php _e('上传出现错误'); ?>';
+
+        var fileError = '<?php _e('%s 上传失败'); ?>'.replace('%s', file.name),
+            li, exist = $('#' + file.id);
+
+        if (exist.length > 0) {
+            li = exist.removeClass('loading').html(fileError);
+        } else {
+            li = $('<li>' + fileError + '<br />' + word + '</li>').appendTo('#file-list');
+        }
+
+        li.effect('highlight', {color : '#FBC2C4'}, 2000, function () {
+            $(this).remove();
+        });
+    }
 })
 </script>
 <?php
