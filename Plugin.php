@@ -76,8 +76,6 @@ $(document).ready(function () {
 
     // 上传文件函数
     function uploadFile(file) {
-        console.log(file);
-
         // 生成一段随机的字符串作为 key
         var index = Math.random().toString(10).substr(2, 5) + '-' + Math.random().toString(36).substr(2);
         // 默认文件后缀是 png，在Chrome浏览器中剪贴板粘贴的图片都是png格式，其他浏览器暂未测试
@@ -116,7 +114,6 @@ $(document).ready(function () {
             contentType: false,
             processData: false,
             success: function (data) {
-                console.log(data);
                 var url = data[0], title = data[1].title;
                 textarea.val(textarea.val().replace(uploadingText, '![' + title + '](' + url + ')'));
                 // 触发输入框更新事件，把状态压人栈中，解决预览不更新的问题
@@ -139,7 +136,6 @@ $(document).ready(function () {
       var clipboardData = e.clipboardData;
       var items = clipboardData.items;
       for (var i = 0; i < items.length; i++) {
-        console.log(items[i]);
         if (items[i].kind === 'file' && items[i].type.match(/^image/)) {
           // 取消默认的粘贴操作
           e.preventDefault();
