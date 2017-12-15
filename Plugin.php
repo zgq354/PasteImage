@@ -19,7 +19,9 @@ class PasteImage_Plugin implements Typecho_Plugin_Interface
      */
     public static function activate()
     {
-        Typecho_Plugin::factory('admin/menu.php')->navBar = array('PasteImage_Plugin', 'render');
+        // 在编辑文章和编辑页面的底部注入代码
+        Typecho_Plugin::factory('admin/write-post.php')->bottom = array('PasteImage_Plugin', 'render');
+        Typecho_Plugin::factory('admin/write-page.php')->bottom = array('PasteImage_Plugin', 'render');
     }
 
     /**
@@ -63,8 +65,74 @@ class PasteImage_Plugin implements Typecho_Plugin_Interface
      */
     public static function render()
     {
-        echo '<span class="message success">'
-            . htmlspecialchars(Typecho_Widget::widget('Widget_Options')->plugin('HelloWorld')->word)
-            . '</span>';
+        ?>
+<script>
+// 粘贴文件上传
+$(document).ready(function () {
+    // 上传URL
+    var uploadUrl = '<?php Helper::security()->index('/action/upload'); ?>';
+    // 处理有特定的 CID 的情况
+    var cid = $('input[name="cid"]').val();
+    if (cid) {
+        uploadUrl += '&cid=' + cid;
+    }
+
+    // 上传文件函数
+    function uploadFile(file) {
+        console.log(file);
+
+        // 生成一段随机的字符串作为 key
+        var index = Math.random().toString(10).substr(2, 5) + '-' + Math.random().toString(36).substr(2);
+        var fileName = index + '.png';
+
+        // 上传时候提示的文字
+        var uploadingText = '[图片上传中...(' + index + ')]';
+
+        // 先把这段文字插入
+        var textarea = $('#text'), sel = textarea.getSelection(),
+        offset = (sel ? sel.start : 0) + uploadingText.length;
+        textarea.replaceSelection(uploadingText);
+        // 设置光标位置
+        textarea.setSelection(offset, offset);
+
+        // 是时候展示真正的上传了
+        var formData = new FormData();
+        formData.append('name', fileName);
+        formData.append('file', file, fileName);
+
+        $.ajax({
+            method: 'post',
+            url: uploadUrl,
+            data: formData,
+            contentType: false,
+            processData: false,
+            success: function (data) {
+                console.log(data);
+                var url = data[0], title = data[1].title;
+                textarea.val(textarea.val().replace(uploadingText, '![' + title + '](' + url + ')'));
+            },
+            error: function (error) {
+                textarea.val(textarea.val().replace(uploadingText, '[图片上传错误...]\n'));
+            }
+        });
+    }
+
+    // 监听输入框粘贴事件
+    document.getElementById('text').addEventListener('paste', function (e) {
+      var clipboardData = e.clipboardData;
+      var items = clipboardData.items;
+      for (var i = 0; i < items.length; i++) {
+        console.log(items[i]);
+        if (items[i].kind === 'file' && items[i].type.match(/^image/)) {
+          // 取消默认的粘贴操作
+          e.preventDefault();
+          uploadFile(items[i].getAsFile());
+          break;
+        }
+      }
+    })
+})
+</script>
+<?php
     }
 }
