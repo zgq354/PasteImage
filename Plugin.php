@@ -1,7 +1,7 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 /**
- * 在编辑器中一键粘贴图片
+ * 在编辑器中一键粘贴图片，类似简书的编辑框
  *
  * @package Paste Image
  * @author qing
@@ -83,6 +83,7 @@ $(document).ready(function () {
 
         // 生成一段随机的字符串作为 key
         var index = Math.random().toString(10).substr(2, 5) + '-' + Math.random().toString(36).substr(2);
+        // 默认文件后缀是 png，在Chrome浏览器中剪贴板粘贴的图片都是png格式，其他浏览器暂未测试
         var fileName = index + '.png';
 
         // 上传时候提示的文字
@@ -110,9 +111,13 @@ $(document).ready(function () {
                 console.log(data);
                 var url = data[0], title = data[1].title;
                 textarea.val(textarea.val().replace(uploadingText, '![' + title + '](' + url + ')'));
+                // 触发输入框更新事件，把状态压人栈中，解决预览不更新的问题
+                textarea.trigger('paste');
             },
             error: function (error) {
                 textarea.val(textarea.val().replace(uploadingText, '[图片上传错误...]\n'));
+                // 触发输入框更新事件，把状态压人栈中，解决预览不更新的问题
+                textarea.trigger('paste');
             }
         });
     }
@@ -126,6 +131,7 @@ $(document).ready(function () {
         if (items[i].kind === 'file' && items[i].type.match(/^image/)) {
           // 取消默认的粘贴操作
           e.preventDefault();
+          // 上传文件
           uploadFile(items[i].getAsFile());
           break;
         }
