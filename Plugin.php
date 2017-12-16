@@ -6,7 +6,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  * @package Paste Image
  * @author qing
  * @version 1.0.0
- * @link http://izgq.net/
+ * @link https://github.com/zgq354/PasteImage
  */
 class PasteImage_Plugin implements Typecho_Plugin_Interface
 {
